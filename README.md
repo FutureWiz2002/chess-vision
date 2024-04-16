@@ -1,0 +1,1 @@
+This is my attempt on a computer vision model that would take in an image of a chess board (a screenshot from chess.com) for example and return a pgn file/text that can be loaded into lichess or chess.com and be used for engine evaluation
