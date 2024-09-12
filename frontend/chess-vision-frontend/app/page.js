@@ -5,6 +5,12 @@ import { useState } from "react";
 
 export default function Home() {
   const [selectedImage, setSelectedImage] = useState(null);
+
+  const postImage = () => {
+    console.log("Well hello there")
+    console.log(typeof selectedImage)
+  }
+
   const UploadAndDisplayImage = () => {
     return (
       <div className="items-center justify-items-center p-8 pb-20">
@@ -45,7 +51,11 @@ export default function Home() {
       <div className="p-20 text-center m-20 items-center justfiy-items-center">
         <UploadAndDisplayImage/>
       </div>
-
+      <div>
+        <button onClick={postImage}>
+          Analyze
+        </button>
+      </div>
     </div>
   );
 }
