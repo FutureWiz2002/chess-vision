@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import axios from 'axios';
 import TextTransition, { presets } from 'react-text-transition';
 
+
 export default function Home() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [whoToMove, setWhoToMove] = useState("w")
@@ -60,7 +61,7 @@ export default function Home() {
 
   const UploadAndDisplayImage = () => {
     return (
-      <div className="items-center justify-items-center p-8 pb-20">
+      <div className="items-center justify-items-center p-8 pb-20 bg-[#F2F2F2] rounded-xl">
         <div className="flex flex-col items-center justify-center p-8 pb-20">
           <p className="text-center text-2xl">Who to move?</p>
           <div className="flex items-center space-x-4 mt-4">
@@ -92,7 +93,7 @@ export default function Home() {
           />
         </div>
         <div>
-          <button type="button" onClick={postImage}>
+          <button type="button" onClick={postImage} className=" bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 border border-blue-700 rounded m-6">
             Analyze chess position!!
           </button>
         </div>
@@ -100,21 +101,30 @@ export default function Home() {
     );
   };
 
+  const showLichessPath = () => {
+    return (
+      <div className="bg-[#000000]">
+        <a href={`https://${resultPath}`} target="_blank" rel="noopener noreferrer">{resultPath}</a>
+      </div>
+    )
+  }
 
   return (
-    <div className="items-center justify-items-center p-8 pb-20 max-w-[80] w-10/12">
-      <p className="items-center justfiy-items-center text-6xl font-extrabold bg-gradient-to-r from-blue-600 via-green-500 to-indigo-400 bg-clip-text text-transparent">Chess Vision 👀</p>
-      <Annimate />
-      <p className="text-2xl p-20 text-center">
-        Want to analyze chess positions ♕ but feel too lazy to setup a board online? I have a perfect tool for you! Take a screenshot 📸 of your chessboard and upload them here and my computer vision model will take of everything!
-      </p>
-      <div className="p-20 text-center m-20 items-center justfiy-items-center">
-        <UploadAndDisplayImage />
-      </div>
-      <div>
-        {showResult &&
-          <a href={`https://${resultPath}`} target="_blank" rel="noopener noreferrer">{resultPath}</a>
-        }
+    <div className="bg-[#002F5E]">
+
+      <div className="items-center justify-items-center p-8 pb-20 w-4/5 mx-auto w-10/12 bg-inherit">
+        <p className="items-center justfiy-items-center text-6xl font-extrabold bg-gradient-to-r from-[#FFD700] to-[#E5A932] bg-clip-text text-transparent">Chess Vision 👀</p>
+        <Annimate />
+        <p className="text-2xl p-20 text-center">
+          Want to analyze chess positions ♕ but feel too lazy to setup a board online? I have a perfect tool for you! Take a screenshot 📸 of your chessboard and upload them here and my computer vision model will take of everything!
+        </p>
+        <div className="p-20 text-center m-20 items-center justfiy-items-center">
+          <UploadAndDisplayImage />
+        </div>
+        <div>
+          {showResult && showLichessPath
+          }
+        </div>
       </div>
     </div>
   );
