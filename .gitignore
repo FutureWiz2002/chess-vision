@@ -1,1 +1,4 @@
-/backend/
+/backend/share
+/backend/bin
+/backend/lib
+/backend/include
