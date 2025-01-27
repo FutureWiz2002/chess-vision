@@ -38,7 +38,7 @@ export default function Home() {
     const data = new FormData()
     data.append('imageFile', selectedImage)
     data.append('whotomove', whoToMove)
-
+    setShowResult(true)
     const config = {
       headers: { 'content-type': 'multipart/form-data' }
     }
@@ -61,7 +61,7 @@ export default function Home() {
 
   const UploadAndDisplayImage = () => {
     return (
-      <div className="items-center justify-items-center p-8 pb-20 bg-[#F2F2F2] rounded-xl">
+      <div className="items-center justify-items-center p-8 pb-20 bg-gray-800 rounded-xl">
         <div className="flex flex-col items-center justify-center p-8 pb-20">
           <p className="text-center text-2xl">Who to move?</p>
           <div className="flex items-center space-x-4 mt-4">
@@ -103,17 +103,18 @@ export default function Home() {
 
   const showLichessPath = () => {
     return (
-      <div className="bg-[#000000]">
-        <a href={`https://${resultPath}`} target="_blank" rel="noopener noreferrer">{resultPath}</a>
+      <div className="bg-gray-900 p-3">
+        <p className="text-xl">Here is your Lichess link!</p>
+        <a href={`https://${resultPath}`} target="_blank" rel="noopener noreferrer" className="text-while">{resultPath}</a>
       </div>
     )
   }
 
   return (
-    <div className="bg-[#002F5E]">
+    <div className="bg-[#000]">
 
       <div className="items-center justify-items-center p-8 pb-20 w-4/5 mx-auto w-10/12 bg-inherit">
-        <p className="items-center justfiy-items-center text-6xl font-extrabold bg-gradient-to-r from-[#FFD700] to-[#E5A932] bg-clip-text text-transparent">Chess Vision 👀</p>
+        <p className="items-center justfiy-items-center text-6xl font-extrabold bg-gradient-to-r from-[#d16800] to-[#ffc58d] bg-clip-text text-transparent">ChessVision</p>
         <Annimate />
         <p className="text-2xl p-20 text-center">
           Want to analyze chess positions ♕ but feel too lazy to setup a board online? I have a perfect tool for you! Take a screenshot 📸 of your chessboard and upload them here and my computer vision model will take of everything!
@@ -122,7 +123,7 @@ export default function Home() {
           <UploadAndDisplayImage />
         </div>
         <div>
-          {showResult && showLichessPath
+          {showResult && showLichessPath()
           }
         </div>
       </div>
