@@ -20,6 +20,7 @@ Flask==3.0.3
 Flask-Cors==5.0.0
 fonttools==4.53.1
 fsspec==2024.9.0
+gunicorn==23.0.0
 idna==3.8
 ipython==8.12.3
 itsdangerous==2.2.0
