@@ -58,7 +58,7 @@ export default function App() {
     if (!selectedImage) return;
     
     console.log(selectedImage);
-    const api = "http://127.0.0.1:5000/vision";
+    const api = "https://chess-vision.onrender.com/vision";
     const data = new FormData();
     data.append('imageFile', selectedImage);
     data.append('whotomove', whoToMove);``

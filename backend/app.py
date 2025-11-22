@@ -10,6 +10,9 @@ import os
 # Load the model
 app = Flask(__name__)
 
+
+CORS(app, origins=["http://localhost:3000"], supports_credentials=True)
+
 @app.route("/", methods=["GET", "POST"])
 def home():
     return "He sacked THE ROOOKKKK!!!!"
@@ -99,5 +102,3 @@ def vision():
 
     return jsonify(return_data)
 
-
-CORS(app)
