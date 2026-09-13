@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/toast";
 
 const API_STAGE = process.env.NEXT_PUBLIC_STAGE || "local";
-const API_BASE_URL = API_STAGE === "local" ? "http://localhost:8000" : "";
+const API_BASE_URL = API_STAGE === "local" ? "http://localhost:8000" : "https://chess-vision.onrender.com";
 
 const initialCastlingRights = {
   whiteKingside: true,
