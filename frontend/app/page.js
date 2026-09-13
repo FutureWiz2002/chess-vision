@@ -1,14 +1,40 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
-import axios from 'axios';
-import TextTransition, { presets } from 'react-text-transition';
-import { Upload, Crown, ExternalLink, CheckCircle2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Separator } from '@/components/ui/separator';
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import axios from "axios";
+import {
+  CheckCircle2,
+  Clipboard,
+  ExternalLink,
+  HelpCircle,
+  Loader2,
+  RotateCcw,
+  ScanLine,
+  Upload,
+  X,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import {
+  Toast,
+  ToastClose,
+  ToastProvider,
+  ToastTitle,
+  ToastViewport,
+} from "@/components/ui/toast";
+
+const API_STAGE = process.env.NEXT_PUBLIC_STAGE || "local";
+const API_BASE_URL = API_STAGE === "local" ? "http://localhost:8000" : "";
+
+const initialCastlingRights = {
+  whiteKingside: true,
+  whiteQueenside: true,
+  blackKingside: true,
+  blackQueenside: true,
+};
 
 export default function App() {
   const [selectedImage, setSelectedImage] = useState(null);
@@ -19,98 +45,126 @@ export default function App() {
   const [showResult, setShowResult] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [castlingRights, setCastlingRights] = useState({
-    whiteKingside: true,
-    whiteQueenside: true,
-    blackKingside: true,
-    blackQueenside: true,
-  });
+  const [errorMessage, setErrorMessage] = useState("");
+  const [castlingRights, setCastlingRights] = useState(initialCastlingRights);
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [successToastOpen, setSuccessToastOpen] = useState(false);
+  const [successToastKey, setSuccessToastKey] = useState(0);
   const fileInputRef = useRef(null);
 
-  const options = ['Take a Screenshot', 'Upload Image', 'Generate Link', 'Analyze'];
+  const apiUrl = `${API_BASE_URL}/vision`;
+  const enPassantValue = enPassantTarget.trim() || "-";
+  const enPassantIsValid =
+    enPassantValue === "-" || /^[a-h][36]$/i.test(enPassantValue);
 
-  // Handle paste from clipboard
+  const fileStats = useMemo(() => {
+    if (!selectedImage) return null;
+    return {
+      name: selectedImage.name || "clipboard-image",
+      type: selectedImage.type || "image",
+      size: `${Math.max(selectedImage.size / 1024, 1).toFixed(0)} KB`,
+    };
+  }, [selectedImage]);
+
+  const chooseImage = (file) => {
+    if (!file || !file.type.startsWith("image/")) return;
+
+    setSelectedImage(file);
+    setShowResult(false);
+    setResultPath("");
+    setErrorMessage("");
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setImagePreview(event.target?.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
   useEffect(() => {
-    const handlePaste = (e) => {
-      const items = e.clipboardData?.items;
+    const handlePaste = (event) => {
+      const items = event.clipboardData?.items;
       if (!items) return;
 
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].type.indexOf('image') !== -1) {
-          const blob = items[i].getAsFile();
-          if (blob) {
-            setSelectedImage(blob);
-            const reader = new FileReader();
-            reader.onload = (event) => {
-              setImagePreview(event.target?.result);
-            };
-            reader.readAsDataURL(blob);
-          }
+      for (let index = 0; index < items.length; index += 1) {
+        if (items[index].type.startsWith("image/")) {
+          const image = items[index].getAsFile();
+          if (image) chooseImage(image);
+          return;
         }
       }
     };
 
-    window.addEventListener('paste', handlePaste);
-    return () => window.removeEventListener('paste', handlePaste);
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
   }, []);
 
-  const postImage = (e) => {
-    e.preventDefault();
+  const postImage = (event) => {
+    event.preventDefault();
+
     if (!selectedImage) {
       console.warn("[ChessVision FE] Submit ignored: no image selected");
+      setErrorMessage("Add a board image before running vision.");
       return;
     }
-    
-    const stage = process.env.NEXT_PUBLIC_STAGE || "local";
-    const apiBaseUrl = stage === "local" ? "http://localhost:8000" : "";
-    const api = `${apiBaseUrl}/vision`;
+
+    if (!enPassantIsValid) {
+      setErrorMessage("En passant must be '-' or a square like e3 or d6.");
+      return;
+    }
+
     const data = new FormData();
-    data.append('imageFile', selectedImage);
-    data.append('whotomove', whoToMove);
-    // Add castling rights to the form data
-    data.append('castling', JSON.stringify(castlingRights));
-    data.append('enpassant', enPassantTarget.trim() || "-");
+    data.append("imageFile", selectedImage);
+    data.append("whotomove", whoToMove);
+    data.append("castling", JSON.stringify(castlingRights));
+    data.append("enpassant", enPassantValue);
 
     console.group("[ChessVision FE] POST /vision");
-    console.log("stage:", stage);
-    console.log("API URL:", api);
-    console.log("Image:", {
-      name: selectedImage.name,
-      type: selectedImage.type,
-      size: selectedImage.size,
-    });
+    console.log("stage:", API_STAGE);
+    console.log("API URL:", apiUrl);
+    console.log("Image:", fileStats);
     console.log("whoToMove:", whoToMove);
     console.log("castlingRights:", castlingRights);
-    console.log("enPassantTarget:", enPassantTarget);
+    console.log("enPassantTarget:", enPassantValue);
     console.groupEnd();
-    
+
     setIsProcessing(true);
-    const config = {
-      headers: { 'content-type': 'multipart/form-data' }
-    };
-    
-    axios.post(api, data, config)
+    setErrorMessage("");
+
+    axios
+      .post(apiUrl, data, {
+        headers: { "content-type": "multipart/form-data" },
+      })
       .then((response) => {
         console.group("[ChessVision FE] /vision response");
         console.log("status:", response.status);
         console.log("data:", response.data);
         console.groupEnd();
+
         setShowResult(true);
         setResultPath(response.data.link);
+        setSuccessToastKey((current) => current + 1);
+        setSuccessToastOpen(true);
         setIsProcessing(false);
-      }).catch((error) => {
+      })
+      .catch((error) => {
         console.group("[ChessVision FE] /vision error");
         console.error(error);
         console.log("status:", error.response?.status);
         console.log("response data:", error.response?.data);
-        console.log("request URL:", api);
+        console.log("request URL:", apiUrl);
         console.groupEnd();
+
+        setErrorMessage(
+          error.response?.data?.detail ||
+            "Could not create an analysis link."
+        );
         setIsProcessing(false);
       });
   };
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
+  const handleDragOver = (event) => {
+    event.preventDefault();
     setIsDragging(true);
   };
 
@@ -118,124 +172,76 @@ export default function App() {
     setIsDragging(false);
   };
 
-  const handleDrop = (e) => {
-    e.preventDefault();
+  const handleDrop = (event) => {
+    event.preventDefault();
     setIsDragging(false);
-
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-      setSelectedImage(file);
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setImagePreview(event.target?.result);
-      };
-      reader.readAsDataURL(file);
-    }
+    chooseImage(event.dataTransfer.files[0]);
   };
 
-  const handleFileSelect = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedImage(file);
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setImagePreview(event.target?.result);
-      };
-      reader.readAsDataURL(file);
-    }
+  const handleFileSelect = (event) => {
+    chooseImage(event.target.files?.[0]);
   };
 
   const removeImage = () => {
     setSelectedImage(null);
     setImagePreview(null);
     setShowResult(false);
+    setResultPath("");
+    setErrorMessage("");
+  };
+
+  const resetPosition = () => {
+    setWhoToMove("w");
+    setEnPassantTarget("-");
+    setCastlingRights(initialCastlingRights);
+  };
+
+  const updateCastling = (key, checked) => {
+    setCastlingRights((current) => ({
+      ...current,
+      [key]: Boolean(checked),
+    }));
   };
 
   return (
-    <div className="min-h-screen bg-[#000]">
-      <div className="container mx-auto px-4 py-8 md:py-12 max-w-7xl">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <Crown className="w-10 h-10 text-[#d16800]" />
-            <h1 className="bg-gradient-to-r from-[#d16800] to-[#ffc58d] bg-clip-text text-transparent">
-              ChessVision
-            </h1>
-          </div>
-          <p className="text-slate-300 max-w-3xl mx-auto mt-8">
-            Want to analyze chess positions ♕ but feel too lazy to setup a board online? I have a perfect tool for you! Take a screenshot 📸 of your chessboard and upload it here and my computer vision model will take care of everything!
-          </p>
-        </div>
-
-        {/* Main Content */}
-        <div className="grid md:grid-cols-2 gap-8 lg:gap-12 mb-12">
-          {/* Left Column - Instructions */}
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-white mb-4">How It Works</h2>
-              <div className="space-y-4">
-                <div className="flex gap-4">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-r from-[#d16800] to-[#ffc58d] text-white flex items-center justify-center">
-                    1
-                  </div>
-                  <div>
-                    <h3 className="text-white mb-1">Upload Your Chess Board</h3>
-                    <p className="text-slate-400">
-                      Drag and drop an image, paste from clipboard (Ctrl+V), or click to browse. Any clear photo of a chess position works.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-4">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-r from-[#d16800] to-[#ffc58d] text-white flex items-center justify-center">
-                    2
-                  </div>
-                  <div>
-                    <h3 className="text-white mb-1">Configure Position Details</h3>
-                    <p className="text-slate-400">
-                      Set who's turn it is to move and adjust castling rights for both players.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-4">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-r from-[#d16800] to-[#ffc58d] text-white flex items-center justify-center">
-                    3
-                  </div>
-                  <div>
-                    <h3 className="text-white mb-1">AI Detection & Analysis</h3>
-                    <p className="text-slate-400">
-                      Our YOLO computer vision model detects all pieces on the board and identifies their positions.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-4">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-r from-[#d16800] to-[#ffc58d] text-white flex items-center justify-center">
-                    4
-                  </div>
-                  <div>
-                    <h3 className="text-white mb-1">Analyze on Lichess</h3>
-                    <p className="text-slate-400">
-                      Get a direct link to analyze or play the position on Lichess with the detected board state.
-                    </p>
-                  </div>
-                </div>
+    <ToastProvider swipeDirection="right">
+      <main className="min-h-screen bg-[#f5f5f5] text-[#171717] selection:bg-black selection:text-white lg:h-screen lg:overflow-hidden">
+        <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 lg:h-screen lg:min-h-0 lg:px-6 lg:py-3">
+          <header className="flex shrink-0 flex-col gap-3 border-b border-[#d4d4d4] pb-4 md:flex-row md:items-center md:justify-between lg:pb-3">
+            <div className="flex items-center gap-4">
+              <div className="grid h-10 w-10 place-items-center rounded-md border border-black bg-black">
+                <ScanLine className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-semibold tracking-[-0.03em] text-black lg:text-4xl">
+                  ChessVision
+                </h1>
+                <p className="mt-1 max-w-2xl text-sm leading-5 text-[#606060]">
+                  Turn a board image into a Lichess analysis position.
+                </p>
               </div>
             </div>
-          </div>
 
-          {/* Right Column - Upload Area */}
-          <div className="space-y-6">
-            <Card className="overflow-hidden bg-gray-800 border-gray-700">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setTutorialOpen(true)}
+              className="w-fit rounded-md border-[#c8c8c8] bg-white text-black hover:bg-[#ededed]"
+            >
+              <HelpCircle className="h-4 w-4" />
+              How it works
+            </Button>
+          </header>
+
+          <section className="grid flex-1 gap-4 py-4 lg:min-h-0 lg:grid-cols-2 lg:grid-rows-[auto_1fr] lg:items-stretch lg:py-3">
+          <div className="flex min-h-[320px] flex-col lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:min-h-0">
+            <Card className="flex flex-1 flex-col overflow-hidden rounded-md border-[#d4d4d4] bg-white shadow-[0_18px_50px_rgba(0,0,0,0.08)]">
               <div
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                className={`relative border-2 border-dashed rounded-lg transition-colors ${
-                  isDragging
-                    ? 'border-[#d16800] bg-gray-700'
-                    : 'border-gray-600 bg-gray-800'
+                className={`relative flex flex-1 items-center justify-center p-4 transition-colors ${
+                  isDragging ? "bg-[#e7e7e7]" : "bg-[#fafafa]"
                 }`}
               >
                 <input
@@ -246,211 +252,361 @@ export default function App() {
                   className="hidden"
                 />
 
-                {!imagePreview ? (
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="cursor-pointer p-12 text-center"
+                <div className="absolute inset-5 rounded-md opacity-40 [background-image:linear-gradient(45deg,#dddddd_25%,transparent_25%),linear-gradient(-45deg,#dddddd_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#dddddd_75%),linear-gradient(-45deg,transparent_75%,#dddddd_75%)] [background-position:0_0,0_40px,40px_-40px,-40px_0] [background-size:80px_80px]" />
+
+                {selectedImage && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={removeImage}
+                    className="absolute right-5 top-5 z-20 border border-[#c8c8c8] bg-white/95 text-black hover:bg-[#ededed] hover:text-black"
                   >
-                    <Upload className="w-12 h-12 text-gray-500 mx-auto mb-4" />
-                    <h3 className="text-white mb-2">Upload Chess Board Image</h3>
-                    <p className="text-slate-400 mb-4">
-                      Drag and drop, paste (Ctrl+V), or click to browse
-                    </p>
-                    <p className="text-slate-500">
-                      Supports JPG, PNG, WebP
-                    </p>
-                  </div>
+                    <X className="h-4 w-4" />
+                    Clear
+                  </Button>
+                )}
+
+                {!imagePreview ? (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="relative z-10 flex w-full max-w-md flex-col items-center rounded-md border border-dashed border-[#8b8b8b] bg-white/95 px-6 py-8 text-center transition hover:border-black hover:bg-[#f2f2f2] focus:outline-none focus:ring-2 focus:ring-black"
+                  >
+                    <div className="grid h-12 w-12 place-items-center rounded-md bg-black text-white shadow-[0_12px_24px_rgba(0,0,0,0.16)]">
+                      <Upload className="h-5 w-5" />
+                    </div>
+                    <span className="mt-4 text-xl font-semibold tracking-[-0.03em] text-black">
+                      Load a board image
+                    </span>
+                    <span className="mt-2 max-w-sm text-sm leading-5 text-[#606060]">
+                      Drop a screenshot here or browse from disk. PNG, JPG, and
+                      WebP are supported.
+                    </span>
+                  </button>
                 ) : (
-                  <div className="relative">
+                  <div className="relative z-10 flex h-full w-full items-center justify-center">
                     <img
                       src={imagePreview}
-                      alt="Chess board"
-                      className="w-full h-auto max-h-96 object-contain"
+                      alt="Uploaded chess board"
+                      className="max-h-[60vh] w-auto max-w-full rounded-md border border-[#c8c8c8] bg-white object-contain shadow-[0_18px_48px_rgba(0,0,0,0.14)]"
                     />
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={removeImage}
-                      className="absolute top-2 right-2"
-                    >
-                      Remove
-                    </Button>
                   </div>
                 )}
               </div>
             </Card>
+          </div>
 
-            {selectedImage && (
-              <Card className="p-6 space-y-6 bg-gray-800 border-gray-700">
+          <aside className="flex min-h-0 flex-col gap-4 lg:contents">
+            <Card className="rounded-md border-[#d4d4d4] bg-white shadow-[0_12px_36px_rgba(0,0,0,0.07)] lg:col-start-2 lg:row-start-1">
+              <div className="flex items-center justify-between border-b border-[#d4d4d4] px-4 py-3">
                 <div>
-                  <h3 className="text-white mb-4">Position Settings</h3>
+                  <h2 className="text-lg font-semibold tracking-[-0.02em] text-black">
+                    Position
+                  </h2>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={resetPosition}
+                  className="text-[#555555] hover:bg-[#ededed] hover:text-black"
+                  aria-label="Reset position"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+              </div>
 
-                  <div className="space-y-4">
-                    <div>
-                      <Label className="mb-3 block text-slate-300">Turn to Move</Label>
-                      <RadioGroup
-                        value={whoToMove}
-                        onValueChange={setWhoToMove}
-                      >
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="w" id="white" />
-                          <Label htmlFor="white" className="cursor-pointer text-slate-300">White</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="b" id="black" />
-                          <Label htmlFor="black" className="cursor-pointer text-slate-300">Black</Label>
-                        </div>
-                      </RadioGroup>
-                    </div>
-
-                    <Separator className="bg-gray-700" />
-
-                    <div>
-                      <Label className="mb-3 block text-slate-300">Castling Rights</Label>
-                      <div className="space-y-3">
-                        <div className="space-y-2">
-                          <p className="text-slate-400">White</p>
-                          <div className="flex gap-4 ml-2">
-                            <div className="flex items-center space-x-2">
-                              <Checkbox
-                                id="white-kingside"
-                                checked={castlingRights.whiteKingside}
-                                onCheckedChange={(checked) =>
-                                  setCastlingRights({
-                                    ...castlingRights,
-                                    whiteKingside: checked,
-                                  })
-                                }
-                              />
-                              <Label htmlFor="white-kingside" className="cursor-pointer text-slate-300">
-                                Kingside
-                              </Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <Checkbox
-                                id="white-queenside"
-                                checked={castlingRights.whiteQueenside}
-                                onCheckedChange={(checked) =>
-                                  setCastlingRights({
-                                    ...castlingRights,
-                                    whiteQueenside: checked,
-                                  })
-                                }
-                              />
-                              <Label htmlFor="white-queenside" className="cursor-pointer text-slate-300">
-                                Queenside
-                              </Label>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <p className="text-slate-400">Black</p>
-                          <div className="flex gap-4 ml-2">
-                            <div className="flex items-center space-x-2">
-                              <Checkbox
-                                id="black-kingside"
-                                checked={castlingRights.blackKingside}
-                                onCheckedChange={(checked) =>
-                                  setCastlingRights({
-                                    ...castlingRights,
-                                    blackKingside: checked,
-                                  })
-                                }
-                              />
-                              <Label htmlFor="black-kingside" className="cursor-pointer text-slate-300">
-                                Kingside
-                              </Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <Checkbox
-                                id="black-queenside"
-                                checked={castlingRights.blackQueenside}
-                                onCheckedChange={(checked) =>
-                                  setCastlingRights({
-                                    ...castlingRights,
-                                    blackQueenside: checked,
-                                  })
-                                }
-                              />
-                              <Label htmlFor="black-queenside" className="cursor-pointer text-slate-300">
-                                Queenside
-                              </Label>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <Separator className="bg-gray-700" />
-
-                    <div>
-                      <Label htmlFor="en-passant" className="mb-3 block text-slate-300">
-                        En Passant Target
-                      </Label>
-                      <input
-                        id="en-passant"
-                        value={enPassantTarget}
-                        onChange={(event) => setEnPassantTarget(event.target.value)}
-                        placeholder="-"
-                        className="w-full rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-slate-200 outline-none focus:border-[#d16800]"
-                      />
-                      <p className="mt-2 text-sm text-slate-500">
-                        Use "-" for none, or a square like e3 or d6.
-                      </p>
-                    </div>
+              <form onSubmit={postImage} className="space-y-3 p-4">
+                <div>
+                  <Label className="mb-2 block text-sm font-medium text-[#303030]">
+                    Turn
+                  </Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <TurnButton
+                      value="w"
+                      label="White"
+                      active={whoToMove === "w"}
+                      onSelect={setWhoToMove}
+                    />
+                    <TurnButton
+                      value="b"
+                      label="Black"
+                      active={whoToMove === "b"}
+                      onSelect={setWhoToMove}
+                    />
                   </div>
                 </div>
 
+                <Separator className="bg-[#d4d4d4]" />
+
+                <div>
+                  <Label className="mb-2 block text-sm font-medium text-[#303030]">
+                    Castling
+                  </Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <CastlingRow
+                      label="White kingside"
+                      code="K"
+                      checked={castlingRights.whiteKingside}
+                      onCheckedChange={(checked) => updateCastling("whiteKingside", checked)}
+                    />
+                    <CastlingRow
+                      label="White queenside"
+                      code="Q"
+                      checked={castlingRights.whiteQueenside}
+                      onCheckedChange={(checked) => updateCastling("whiteQueenside", checked)}
+                    />
+                    <CastlingRow
+                      label="Black kingside"
+                      code="k"
+                      checked={castlingRights.blackKingside}
+                      onCheckedChange={(checked) => updateCastling("blackKingside", checked)}
+                    />
+                    <CastlingRow
+                      label="Black queenside"
+                      code="q"
+                      checked={castlingRights.blackQueenside}
+                      onCheckedChange={(checked) => updateCastling("blackQueenside", checked)}
+                    />
+                  </div>
+                </div>
+
+                <Separator className="bg-[#d4d4d4]" />
+
+                <div>
+                  <Label htmlFor="en-passant" className="mb-2 block text-sm font-medium text-[#303030]">
+                    En passant
+                  </Label>
+                  <input
+                    id="en-passant"
+                    value={enPassantTarget}
+                    onChange={(event) => setEnPassantTarget(event.target.value)}
+                    placeholder="-"
+                    className={`h-10 w-full rounded-md border bg-white px-3 text-black outline-none transition placeholder:text-[#8a8a8a] focus:border-black focus:ring-2 focus:ring-black/15 ${
+                      enPassantIsValid ? "border-[#c8c8c8]" : "border-black"
+                    }`}
+                  />
+                  {!enPassantIsValid && (
+                    <p className="mt-2 text-xs font-medium leading-5 text-black">
+                      Use "-" or a square like e3.
+                    </p>
+                  )}
+                </div>
+
+                {errorMessage && (
+                  <div className="rounded-md border border-black bg-[#f0f0f0] px-3 py-3 text-sm leading-5 text-black">
+                    {errorMessage}
+                  </div>
+                )}
+
                 <Button
-                  onClick={postImage}
-                  disabled={isProcessing}
-                  className="w-full bg-gradient-to-r from-[#d16800] to-[#ff8c00] hover:from-[#ff8c00] hover:to-[#d16800]"
+                  type="submit"
+                  disabled={isProcessing || !selectedImage}
+                  className="h-10 w-full rounded-md bg-black text-sm font-semibold text-white shadow-[0_12px_24px_rgba(0,0,0,0.14)] hover:bg-[#292929]"
                 >
-                  {isProcessing ? 'Analyzing...' : 'Analyze Chess Position!!'}
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Analyzing board
+                    </>
+                  ) : (
+                    <>
+                      <ScanLine className="h-4 w-4" />
+                      Analyze position
+                    </>
+                  )}
                 </Button>
-              </Card>
-            )}
+              </form>
+            </Card>
+
+            <Card className="rounded-md border-[#d4d4d4] bg-white shadow-[0_12px_36px_rgba(0,0,0,0.07)] lg:col-start-2 lg:row-start-2">
+              <div className="border-b border-[#d4d4d4] px-4 py-3">
+                <h2 className="text-lg font-semibold tracking-[-0.02em] text-black">
+                  Link
+                </h2>
+              </div>
+
+              <div className="p-4">
+                {showResult && resultPath ? (
+                  <div className="space-y-4">
+                    <p className="text-sm font-medium text-black">
+                      Link is ready
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        type="button"
+                        onClick={() => navigator.clipboard?.writeText(`https://${resultPath}`)}
+                        variant="outline"
+                        className="rounded-md border-[#c8c8c8] bg-white text-black hover:bg-[#ededed]"
+                      >
+                        <Clipboard className="h-4 w-4" />
+                        Copy
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => window.open(`https://${resultPath}`, "_blank")}
+                        className="rounded-md bg-black text-white hover:bg-[#292929]"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        Open
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-md border border-dashed border-[#c8c8c8] bg-[#f7f7f7] px-4 py-5 text-center">
+                    <div className="mx-auto grid h-9 w-9 place-items-center rounded-md bg-[#e5e5e5] text-[#555555]">
+                      <ExternalLink className="h-5 w-5" />
+                    </div>
+                    <p className="mt-3 text-sm font-medium text-black">
+                      No link yet
+                    </p>
+                    <p className="mt-1 text-sm leading-5 text-[#666666]">
+                      Run the analysis after loading a board image.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </Card>
+          </aside>
+          </section>
+        </div>
+        <TutorialDrawer
+          open={tutorialOpen}
+          onClose={() => setTutorialOpen(false)}
+        />
+      </main>
+
+      <Toast
+        key={successToastKey}
+        open={successToastOpen}
+        onOpenChange={setSuccessToastOpen}
+        duration={4000}
+      >
+        <CheckCircle2 className="h-5 w-5 shrink-0 text-white" />
+        <ToastTitle>Position detected</ToastTitle>
+        <ToastClose />
+      </Toast>
+      <ToastViewport />
+    </ToastProvider>
+  );
+}
+
+function TurnButton({ value, label, active, onSelect }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      className={`flex h-10 cursor-pointer items-center gap-3 rounded-md border px-3 text-sm font-medium transition ${
+        active
+          ? "border-black bg-black text-white"
+          : "border-[#c8c8c8] bg-white text-[#303030] hover:bg-[#ededed]"
+      }`}
+      onClick={() => onSelect(value)}
+    >
+      <span
+        className={`h-3 w-3 rounded-full border ${
+          active ? "border-white bg-white" : "border-[#777777]"
+        }`}
+      />
+      {label}
+    </button>
+  );
+}
+
+function CastlingRow({ label, code, checked, onCheckedChange }) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={`${label} ${code}`}
+      aria-pressed={checked}
+      onClick={() => onCheckedChange(!checked)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onCheckedChange(!checked);
+        }
+      }}
+      className={`flex min-h-10 cursor-pointer items-center justify-between gap-2 rounded-md border px-3 py-2 text-left transition focus:outline-none focus:ring-2 focus:ring-black/20 ${
+        checked
+          ? "border-black bg-[#eeeeee]"
+          : "border-[#c8c8c8] bg-white hover:bg-[#f2f2f2]"
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        <span onClick={(event) => event.stopPropagation()}>
+          <Checkbox checked={checked} onCheckedChange={onCheckedChange} />
+        </span>
+        <span className="text-sm text-[#252525]">{label}</span>
+      </div>
+      <span
+        className={`rounded-sm px-2 py-1 font-mono text-xs ${
+          checked
+            ? "bg-black text-white"
+            : "bg-[#e5e5e5] text-[#666666]"
+        }`}
+      >
+        {code}
+      </span>
+    </div>
+  );
+}
+
+function TutorialDrawer({ open, onClose }) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <button
+        type="button"
+        aria-label="Close tutorial"
+        className="absolute inset-0 bg-black/65"
+        onClick={onClose}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="tutorial-title"
+        className="relative flex h-full w-full max-w-md flex-col border-l border-[#d4d4d4] bg-white shadow-[0_24px_70px_rgba(0,0,0,0.18)]"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-[#d4d4d4] px-5 py-5">
+          <div>
+            <h2 id="tutorial-title" className="text-2xl font-semibold tracking-[-0.03em] text-black">
+              How it works
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-[#606060]">
+              A quick path from board image to analysis board.
+            </p>
           </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="text-[#555555] hover:bg-[#ededed] hover:text-black"
+            aria-label="Close tutorial"
+          >
+            <X className="h-4 w-4" />
+          </Button>
         </div>
 
-        {/* Results Section */}
-        {showResult && resultPath && (
-          <Card className="p-8 bg-gray-900 border-gray-700">
-            <div className="flex items-start gap-3 mb-6">
-              <CheckCircle2 className="w-6 h-6 text-green-500 flex-shrink-0 mt-1" />
-              <div>
-                <h2 className="text-white mb-2">Position Detected Successfully!</h2>
-                <p className="text-slate-400">
-                  Your chess position has been analyzed. Click the link below to view it on Lichess.
-                </p>
+        <div className="space-y-4 overflow-y-auto px-5 py-5">
+          {[
+            ["Add an image", "Drop, paste, or upload a clear screenshot of the chessboard."],
+            ["Set the position", "Choose whose turn it is, then adjust castling or en passant only when the position needs it."],
+            ["Analyze", "Run the scan and open the generated Lichess board."],
+          ].map(([title, body], index) => (
+            <div key={title} className="rounded-md border border-[#d4d4d4] bg-[#fafafa] p-4">
+              <div className="mb-3 grid h-8 w-8 place-items-center rounded-md bg-black text-sm font-bold text-white">
+                {index + 1}
               </div>
+              <h3 className="text-base font-semibold text-black">{title}</h3>
+              <p className="mt-2 text-sm leading-6 text-[#606060]">{body}</p>
             </div>
-
-            <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div className="flex-1 min-w-0">
-                  <p className="text-slate-400 mb-2">Lichess Analysis Link:</p>
-                  <a 
-                    href={`https://${resultPath}`} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="text-[#ffc58d] hover:text-[#d16800] break-all transition-colors"
-                  >
-                    {resultPath}
-                  </a>
-                </div>
-                <Button
-                  onClick={() => window.open(`https://${resultPath}`, '_blank')}
-                  className="bg-gradient-to-r from-[#d16800] to-[#ff8c00] hover:from-[#ff8c00] hover:to-[#d16800]"
-                >
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  Open in Lichess
-                </Button>
-              </div>
-            </div>
-          </Card>
-        )}
+          ))}
+        </div>
       </div>
     </div>
   );
