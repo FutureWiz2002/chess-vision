@@ -1,4 +1,3 @@
-/backend/share
-/backend/bin
-/backend/lib
-/backend/include
+/backend/.venv/
+/backend/__pycache__/
+/backend/*.onnx

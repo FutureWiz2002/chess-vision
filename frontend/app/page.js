@@ -14,6 +14,7 @@ export default function App() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [whoToMove, setWhoToMove] = useState("w");
+  const [enPassantTarget, setEnPassantTarget] = useState("-");
   const [resultPath, setResultPath] = useState("");
   const [showResult, setShowResult] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -55,15 +56,33 @@ export default function App() {
 
   const postImage = (e) => {
     e.preventDefault();
-    if (!selectedImage) return;
+    if (!selectedImage) {
+      console.warn("[ChessVision FE] Submit ignored: no image selected");
+      return;
+    }
     
-    console.log(selectedImage);
-    const api = "https://chess-vision.onrender.com/vision";
+    const stage = process.env.NEXT_PUBLIC_STAGE || "local";
+    const apiBaseUrl = stage === "local" ? "http://localhost:8000" : "";
+    const api = `${apiBaseUrl}/vision`;
     const data = new FormData();
     data.append('imageFile', selectedImage);
-    data.append('whotomove', whoToMove);``
+    data.append('whotomove', whoToMove);
     // Add castling rights to the form data
     data.append('castling', JSON.stringify(castlingRights));
+    data.append('enpassant', enPassantTarget.trim() || "-");
+
+    console.group("[ChessVision FE] POST /vision");
+    console.log("stage:", stage);
+    console.log("API URL:", api);
+    console.log("Image:", {
+      name: selectedImage.name,
+      type: selectedImage.type,
+      size: selectedImage.size,
+    });
+    console.log("whoToMove:", whoToMove);
+    console.log("castlingRights:", castlingRights);
+    console.log("enPassantTarget:", enPassantTarget);
+    console.groupEnd();
     
     setIsProcessing(true);
     const config = {
@@ -72,14 +91,20 @@ export default function App() {
     
     axios.post(api, data, config)
       .then((response) => {
-        console.log(response);
+        console.group("[ChessVision FE] /vision response");
+        console.log("status:", response.status);
+        console.log("data:", response.data);
+        console.groupEnd();
         setShowResult(true);
         setResultPath(response.data.link);
-        console.log("This is the final data");
-        console.log(response.data.link);
         setIsProcessing(false);
       }).catch((error) => {
-        console.log(error);
+        console.group("[ChessVision FE] /vision error");
+        console.error(error);
+        console.log("status:", error.response?.status);
+        console.log("response data:", error.response?.data);
+        console.log("request URL:", api);
+        console.groupEnd();
         setIsProcessing(false);
       });
   };
@@ -355,6 +380,24 @@ export default function App() {
                           </div>
                         </div>
                       </div>
+                    </div>
+
+                    <Separator className="bg-gray-700" />
+
+                    <div>
+                      <Label htmlFor="en-passant" className="mb-3 block text-slate-300">
+                        En Passant Target
+                      </Label>
+                      <input
+                        id="en-passant"
+                        value={enPassantTarget}
+                        onChange={(event) => setEnPassantTarget(event.target.value)}
+                        placeholder="-"
+                        className="w-full rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-slate-200 outline-none focus:border-[#d16800]"
+                      />
+                      <p className="mt-2 text-sm text-slate-500">
+                        Use "-" for none, or a square like e3 or d6.
+                      </p>
                     </div>
                   </div>
                 </div>
