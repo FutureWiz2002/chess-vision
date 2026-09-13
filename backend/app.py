@@ -2,6 +2,7 @@ from io import BytesIO
 from dataclasses import dataclass, field
 import json
 import logging
+import os
 from pathlib import Path
 
 import numpy as np
@@ -15,6 +16,18 @@ MODEL_PATH = Path(__file__).with_name("best.onnx")
 IMAGE_SIZE = 640
 CONFIDENCE_THRESHOLD = 0.25
 IOU_THRESHOLD = 0.45
+
+DEFAULT_ALLOWED_ORIGINS = {
+    "https://chess-vision-delta.vercel.app",
+}
+ALLOWED_ORIGINS = sorted(
+    DEFAULT_ALLOWED_ORIGINS
+    | {
+        origin.strip().rstrip("/")
+        for origin in os.getenv("CORS_ORIGINS", "").split(",")
+        if origin.strip()
+    }
+)
 
 PIECE_MAP = {
     0: "Q",
@@ -68,7 +81,7 @@ logger = logging.getLogger("chess-vision.backend")
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
