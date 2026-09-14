@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import {
   CheckCircle2,
+  ChessKnight,
   Clipboard,
   ExternalLink,
   HelpCircle,
@@ -210,10 +211,10 @@ export default function App() {
           <header className="flex shrink-0 flex-col gap-3 border-b border-[#d4d4d4] pb-4 md:flex-row md:items-center md:justify-between lg:pb-3">
             <div className="flex items-center gap-4">
               <div className="grid h-10 w-10 place-items-center rounded-md border border-black bg-black">
-                <ScanLine className="h-5 w-5 text-white" />
+                <ChessKnight className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-semibold tracking-[-0.03em] text-black lg:text-4xl">
+                <h1 className="font-display text-3xl font-bold tracking-[-0.03em] text-black lg:text-4xl">
                   ChessVision
                 </h1>
                 <p className="mt-1 max-w-2xl text-sm leading-5 text-[#606060]">
@@ -276,7 +277,7 @@ export default function App() {
                     <div className="grid h-12 w-12 place-items-center rounded-md bg-black text-white shadow-[0_12px_24px_rgba(0,0,0,0.16)]">
                       <Upload className="h-5 w-5" />
                     </div>
-                    <span className="mt-4 text-xl font-semibold tracking-[-0.03em] text-black">
+                    <span className="mt-4 font-display text-xl font-bold tracking-[-0.02em] text-black">
                       Load a board image
                     </span>
                     <span className="mt-2 max-w-sm text-sm leading-5 text-[#606060]">
@@ -301,7 +302,7 @@ export default function App() {
             <Card className="rounded-md border-[#d4d4d4] bg-white shadow-[0_12px_36px_rgba(0,0,0,0.07)] lg:col-start-2 lg:row-start-1">
               <div className="flex items-center justify-between border-b border-[#d4d4d4] px-4 py-3">
                 <div>
-                  <h2 className="text-lg font-semibold tracking-[-0.02em] text-black">
+                  <h2 className="font-display text-lg font-bold text-black">
                     Position
                   </h2>
                 </div>
@@ -422,7 +423,7 @@ export default function App() {
 
             <Card className="rounded-md border-[#d4d4d4] bg-white shadow-[0_12px_36px_rgba(0,0,0,0.07)] lg:col-start-2 lg:row-start-2">
               <div className="border-b border-[#d4d4d4] px-4 py-3">
-                <h2 className="text-lg font-semibold tracking-[-0.02em] text-black">
+                <h2 className="font-display text-lg font-bold text-black">
                   Link
                 </h2>
               </div>
@@ -542,7 +543,7 @@ function CastlingRow({ label, code, checked, onCheckedChange }) {
         <span className="text-sm text-[#252525]">{label}</span>
       </div>
       <span
-        className={`rounded-sm px-2 py-1 font-mono text-xs ${
+        className={`rounded-sm px-2 py-1 text-xs ${
           checked
             ? "bg-black text-white"
             : "bg-[#e5e5e5] text-[#666666]"
@@ -573,7 +574,7 @@ function TutorialDrawer({ open, onClose }) {
       >
         <div className="flex items-start justify-between gap-4 border-b border-[#d4d4d4] px-5 py-5">
           <div>
-            <h2 id="tutorial-title" className="text-2xl font-semibold tracking-[-0.03em] text-black">
+            <h2 id="tutorial-title" className="font-display text-2xl font-bold tracking-[-0.02em] text-black">
               How it works
             </h2>
             <p className="mt-2 text-sm leading-6 text-[#606060]">
@@ -602,7 +603,7 @@ function TutorialDrawer({ open, onClose }) {
               <div className="mb-3 grid h-8 w-8 place-items-center rounded-md bg-black text-sm font-bold text-white">
                 {index + 1}
               </div>
-              <h3 className="text-base font-semibold text-black">{title}</h3>
+              <h3 className="font-display text-base font-semibold text-black">{title}</h3>
               <p className="mt-2 text-sm leading-6 text-[#606060]">{body}</p>
             </div>
           ))}
